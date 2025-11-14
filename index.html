@@ -240,11 +240,18 @@
     .log-body { padding: 12px; background: #fff; display: none; font-family: monospace; font-size: 11px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; border-top: 1px solid #f0f0f0; }
     .log-body.open { display: block; }
     .log-body pre { margin: 0; }
-    .log-actions { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #e5e5e5; background: #fff; }
+    .log-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px; border-top: 1px solid #e5e5e5; background: #fff; }
+    .log-actions-left { display: flex; gap: 8px; }
+    .log-actions-right { display: flex; gap: 8px; align-items: center; }
     .btn-clear-logs { padding: 6px 12px; background: #f44336; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
     .btn-clear-logs:hover { background: #d32f2f; }
     .btn-export-logs { padding: 6px 12px; background: #4a90e2; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
     .btn-export-logs:hover { background: #357abd; }
+    .btn-copy-all-logs { padding: 6px 12px; background: #4caf50; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-copy-all-logs:hover { background: #45a049; }
+    .btn-copy-log { padding: 4px 8px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; font-size: 11px; color: #666; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-copy-log:hover { background: #f5f5f5; border-color: #4a90e2; color: #4a90e2; }
+    .log-actions-right { display: flex; gap: 6px; align-items: center; }
     
     /* Animations */
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
@@ -380,8 +387,16 @@
             <div class="setting-desc">تمام درخواست‌ها، پاسخ‌ها و خطاها</div>
             <div class="logs-container" id="logs-container"></div>
             <div class="log-actions">
-              <button id="clear-logs-btn" class="btn-clear-logs">پاک کردن لاگ‌ها</button>
-              <button id="export-logs-btn" class="btn-export-logs">دانلود لاگ‌ها</button>
+              <div class="log-actions-left">
+                <button id="clear-logs-btn" class="btn-clear-logs">پاک کردن لاگ‌ها</button>
+                <button id="export-logs-btn" class="btn-export-logs">دانلود لاگ‌ها</button>
+              </div>
+              <div class="log-actions-right">
+                <button id="copy-all-logs-btn" class="btn-copy-all-logs">
+                  <span>📋</span>
+                  <span>کپی همه لاگ‌ها</span>
+                </button>
+              </div>
       </div>
     </div>
     </div>
@@ -515,8 +530,51 @@
         toggle.className = 'log-toggle';
         toggle.textContent = '▾';
         
+        // Copy button for individual log
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn-copy-log';
+        copyBtn.innerHTML = '📋';
+        copyBtn.title = 'کپی این لاگ';
+        copyBtn.onclick = (e) => {
+          e.stopPropagation();
+          const logText = [
+            `زمان: ${date.toLocaleTimeString('fa-IR')} ${date.toLocaleDateString('fa-IR')}`,
+            `نوع: ${typeLabels[log.type] || log.type}`,
+            `عنوان: ${log.title}`,
+            log.error ? `خطا: ${log.error}` : '',
+            log.data ? `\nداده‌ها:\n${log.data}` : ''
+          ].filter(Boolean).join('\n');
+          
+          navigator.clipboard.writeText(logText).then(() => {
+            copyBtn.innerHTML = '✓';
+            copyBtn.style.color = '#4caf50';
+            setTimeout(() => {
+              copyBtn.innerHTML = '📋';
+              copyBtn.style.color = '';
+            }, 2000);
+          }).catch(() => {
+            // Fallback for older browsers
+            const textarea = document.createElement('textarea');
+            textarea.value = logText;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            copyBtn.innerHTML = '✓';
+            copyBtn.style.color = '#4caf50';
+            setTimeout(() => {
+              copyBtn.innerHTML = '📋';
+              copyBtn.style.color = '';
+            }, 2000);
+          });
+        };
+        
+        const right = document.createElement('div');
+        right.className = 'log-actions-right';
+        right.append(copyBtn, toggle);
+        
         left.append(time, typeBadge, title);
-        header.append(left, toggle);
+        header.append(left, right);
         
         const body = document.createElement('div');
         body.className = 'log-body';
@@ -950,6 +1008,57 @@
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    });
+    
+    // Copy All Logs
+    document.getElementById("copy-all-logs-btn").addEventListener("click", () => {
+      const logs = loadLogs();
+      const typeLabels = {
+        request: 'درخواست',
+        response: 'پاسخ',
+        error: 'خطا',
+        info: 'اطلاعات'
+      };
+      
+      const allLogsText = logs.map(log => {
+        const date = new Date(log.timestamp);
+        const lines = [
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+          `زمان: ${date.toLocaleTimeString('fa-IR')} ${date.toLocaleDateString('fa-IR')}`,
+          `نوع: ${typeLabels[log.type] || log.type}`,
+          `عنوان: ${log.title}`,
+          log.error ? `خطا: ${log.error}` : '',
+          log.data ? `\nداده‌ها:\n${log.data}` : ''
+        ].filter(Boolean);
+        return lines.join('\n');
+      }).join('\n\n');
+      
+      navigator.clipboard.writeText(allLogsText).then(() => {
+        const btn = document.getElementById("copy-all-logs-btn");
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<span>✓</span><span>کپی شد!</span>';
+        btn.style.background = '#4caf50';
+        setTimeout(() => {
+          btn.innerHTML = originalHTML;
+          btn.style.background = '';
+        }, 2000);
+      }).catch(() => {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = allLogsText;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        const btn = document.getElementById("copy-all-logs-btn");
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<span>✓</span><span>کپی شد!</span>';
+        btn.style.background = '#4caf50';
+        setTimeout(() => {
+          btn.innerHTML = originalHTML;
+          btn.style.background = '';
+        }, 2000);
+      });
     });
     
     // Add API Key functionality حذف شده است. دکمه مربوطه در رابط وجود ندارد.
