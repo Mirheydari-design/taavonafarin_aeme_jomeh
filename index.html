@@ -349,17 +349,18 @@
             <div class="setting-label">مدل تفکر (Thinking)</div>
             <div class="setting-desc">مدل برای مرحله تفکر و پردازش</div>
             <select id="model-thinking">
-              <option value="gemini-2.0-flash-thinking-exp-01-21">Gemini 2.0 Flash Thinking</option>
-              <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash</option>
-              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash (پیشنهادی)</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+              <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash (Legacy)</option>
             </select>
           </div>
           <div class="setting-group">
             <div class="setting-label">مدل خروجی (Output)</div>
             <div class="setting-desc">مدل برای تولید خروجی نهایی</div>
             <select id="model-output">
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash (پیشنهادی)</option>
               <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-              <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash</option>
+              <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash (Legacy)</option>
             </select>
           </div>
           <div class="setting-group">
@@ -417,8 +418,8 @@
           : typeof window.TAAVON_API_KEYS === "string"
           ? window.TAAVON_API_KEYS.split(",").map(k => k.trim()).filter(Boolean)
           : [],
-      modelThinking: "gemini-2.0-flash-thinking-exp-01-21",
-      modelOutput: "gemini-2.5-pro",
+      modelThinking: "gemini-2.5-flash",
+      modelOutput: "gemini-2.5-flash",
       systemPrompt: "تو یک «مربی تفکر تعاون آفرینی» هستی. خروجی را به فارسی بده.",
       steps: [
         { id: "analysis", title: "تحلیل دغدغه و بازتعریف به بستر تعاون", resultLabel: "بازتعریف دغدغه", thinkingLabel: "در حال تفکر برای بازتعریف مسئله" },
@@ -605,9 +606,20 @@
     }
     
     let config = loadConfig();
+    let patchedModels = false;
+    if (config.modelThinking === "gemini-2.0-flash-thinking-exp-01-21") {
+      config.modelThinking = "gemini-2.5-flash";
+      patchedModels = true;
+    }
+    if (config.modelOutput === "gemini-2.5-pro") {
+      config.modelOutput = "gemini-2.5-flash";
+      patchedModels = true;
+    }
+    if (patchedModels) {
+      saveConfig(config);
+    }
     let keyStats = loadKeyStats();
-    let currentKeyIndex = 0;
-    let activeKeys = new Set(); // Track currently active keys
+    const activeKeys = new Set(); // Track currently active keys
     
     // Initialize stats for new keys
     config.apiKeys.forEach(key => {
@@ -616,6 +628,15 @@
       }
     });
     saveKeyStats(keyStats);
+    
+    const geminiClient = createGeminiClient({
+      getApiKeys: () => config.apiKeys,
+      addLog,
+      keyStats,
+      activeKeys,
+      persistKeyStats: () => saveKeyStats(keyStats),
+      refreshKeyUI: updateKeyStatsUI
+    });
     
     // Request Queue Manager with exponential backoff
     class RequestQueue {
@@ -664,10 +685,286 @@
       }
     }
     
-    const requestQueue = new RequestQueue(2000); // 2 second delay between requests to avoid rate limiting
-    
-    // Rate limit tracking for API keys
-    const rateLimitedKeys = new Map(); // key -> timestamp when rate limit expires
+    function createGeminiClient({
+      getApiKeys,
+      addLog,
+      keyStats,
+      activeKeys,
+      persistKeyStats,
+      refreshKeyUI,
+      delayMs = 2000
+    }) {
+      const queue = new RequestQueue(delayMs);
+      let currentKeyIndex = 0;
+      const rateLimitedKeys = new Map();
+      
+      const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+      const maskKey = (key = "") => key.length <= 15 ? key : `${key.slice(0, 10)}...${key.slice(-5)}`;
+      const truncate = (text = "", max = 500) => text.length > max ? `${text.slice(0, max)}...` : text;
+      
+      const persistStats = () => {
+        if (typeof persistKeyStats === "function") persistKeyStats();
+        if (typeof refreshKeyUI === "function") refreshKeyUI();
+      };
+      
+      const refreshActive = () => {
+        if (typeof refreshKeyUI === "function") refreshKeyUI();
+      };
+      
+      function markActive(key) {
+        if (!key) return;
+        activeKeys.add(key);
+        refreshActive();
+      }
+      
+      function unmarkActive(key) {
+        if (!key) return;
+        if (activeKeys.delete(key)) {
+          refreshActive();
+        }
+      }
+      
+      function touchKeyStats(key, field) {
+        if (!key) return;
+        if (!keyStats[key]) {
+          keyStats[key] = { total: 0, success: 0, error: 0, lastUsed: null };
+        }
+        if (field === "total") keyStats[key].total += 1;
+        if (field === "success") keyStats[key].success += 1;
+        if (field === "error") keyStats[key].error += 1;
+        if (field !== "error") {
+          keyStats[key].lastUsed = new Date().toISOString();
+        }
+        persistStats();
+      }
+      
+      const contextFromMeta = (meta = {}) => {
+        const ctx = {};
+        if (meta.stepId) ctx.stepId = meta.stepId;
+        if (meta.phase) ctx.phase = meta.phase;
+        if (meta.ideaSnippet) ctx.ideaSnippet = meta.ideaSnippet;
+        if (meta.taskId) ctx.taskId = meta.taskId;
+        if (meta.userPrompt) ctx.userPrompt = truncate(meta.userPrompt, 200);
+        return ctx;
+      };
+      
+      const readApiKeys = () => {
+        const keys = typeof getApiKeys === "function" ? getApiKeys() : [];
+        return (keys || []).filter(Boolean);
+      };
+      
+      function logMissingKeys(model, meta) {
+        const errMsg = "هیچ کلید API تنظیم نشده است. لطفاً کلیدها را به عنوان متغیر محیطی مشخص کنید.";
+        addLog('error', errMsg, { model, ...contextFromMeta(meta) });
+        return new Error(errMsg);
+      }
+      
+      function parseRetrySeconds(error) {
+        const message = error.errorMessage || "";
+        const retryMatch = message.match(/retry in ([\d.]+)s/i);
+        if (retryMatch) {
+          return Math.max(1, Math.ceil(parseFloat(retryMatch[1])));
+        }
+        const retryAfterHeader = error.retryAfter;
+        if (retryAfterHeader) {
+          const parsed = parseInt(retryAfterHeader, 10);
+          if (!Number.isNaN(parsed)) return Math.max(1, parsed);
+        }
+        return 60;
+      }
+      
+      const allKeysRateLimited = keys => {
+        if (!keys.length) return false;
+        return keys.every(key => {
+          const expiry = rateLimitedKeys.get(key);
+          return typeof expiry === "number" && Date.now() < expiry;
+        });
+      };
+      
+      const waitTimeForNextKey = () => {
+        let earliest = Infinity;
+        for (const expiry of rateLimitedKeys.values()) {
+          if (expiry < earliest) earliest = expiry;
+        }
+        return earliest === Infinity ? 0 : Math.max(0, earliest - Date.now());
+      };
+      
+      async function performRequest(apiKey, model, body) {
+        const startTime = Date.now();
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const duration = Date.now() - startTime;
+        
+        if (!res.ok) {
+          const errorText = await res.text().catch(() => "");
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            errorData = { message: errorText || `HTTP ${res.status}` };
+          }
+          
+          const apiErrorMessage = errorData?.error?.message || errorData?.message || res.statusText;
+          const error = new Error(`HTTP ${res.status}: ${apiErrorMessage}`);
+          error.httpStatus = res.status;
+          error.duration = duration;
+          error.errorData = errorData;
+          error.errorMessage = apiErrorMessage;
+          error.isQuotaExceeded = /quota/i.test(apiErrorMessage || "");
+          const retryAfterHeader = res.headers.get("Retry-After");
+          if (retryAfterHeader) {
+            error.retryAfter = retryAfterHeader;
+          }
+          throw error;
+        }
+        
+        const data = await res.json();
+        const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || "")?.join("") || "";
+        return { text, duration };
+      }
+      
+      function logGeminiError(model, maskedKey, error, meta) {
+        addLog(
+          'error',
+          `خطا در ${model}`,
+          {
+            key: maskedKey,
+            ...contextFromMeta(meta),
+            status: error.httpStatus,
+            duration: error.duration ? `${error.duration}ms` : undefined,
+            error: error.message,
+            details: error.errorData
+          },
+          error
+        );
+      }
+      
+      async function performAttempt(payload, attempt = 0) {
+        const { model, prompt, meta = {} } = payload;
+        const apiKeys = readApiKeys();
+        
+        if (!apiKeys.length) {
+          throw logMissingKeys(model, meta);
+        }
+        
+        const body = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+        addLog('request', `ارسال درخواست به ${model}`, {
+          model,
+          ...contextFromMeta(meta),
+          prompt: truncate(prompt),
+          timestamp: new Date().toISOString()
+        });
+        
+        let lastError;
+        
+        for (let i = 0; i < apiKeys.length; i++) {
+          const keyIndex = (currentKeyIndex + i) % apiKeys.length;
+          const apiKey = apiKeys[keyIndex];
+          const maskedKey = maskKey(apiKey);
+          const expiry = rateLimitedKeys.get(apiKey);
+          
+          if (expiry && Date.now() < expiry) {
+            const remainingSeconds = Math.ceil((expiry - Date.now()) / 1000);
+            addLog('info', `کلید ${maskedKey} در حال rate limit است - ${remainingSeconds} ثانیه باقی مانده`, {
+              key: maskedKey,
+              remainingSeconds,
+              ...contextFromMeta(meta)
+            });
+            continue;
+          } else if (expiry) {
+            rateLimitedKeys.delete(apiKey);
+          }
+          
+          touchKeyStats(apiKey, "total");
+          markActive(apiKey);
+          addLog('info', `استفاده از API Key: ${maskedKey}`, {
+            keyIndex,
+            key: maskedKey,
+            model,
+            ...contextFromMeta(meta)
+          });
+          
+          try {
+            const { text, duration } = await performRequest(apiKey, model, body);
+            touchKeyStats(apiKey, "success");
+            rateLimitedKeys.delete(apiKey);
+            unmarkActive(apiKey);
+            
+            addLog('response', `پاسخ دریافت شد از ${model}`, {
+              key: maskedKey,
+              ...contextFromMeta(meta),
+              duration: `${duration}ms`,
+              responseLength: text.length,
+              response: truncate(text, 1000),
+              fullResponse: text
+            });
+            
+            currentKeyIndex = (keyIndex + 1) % apiKeys.length;
+            return text;
+          } catch (error) {
+            touchKeyStats(apiKey, "error");
+            unmarkActive(apiKey);
+            logGeminiError(model, maskedKey, error, meta);
+            lastError = error;
+            
+            if (error.httpStatus === 429) {
+              const waitSeconds = parseRetrySeconds(error);
+              const expiryTime = Date.now() + waitSeconds * 1000;
+              rateLimitedKeys.set(apiKey, expiryTime);
+              
+              const logType = error.isQuotaExceeded ? 'error' : 'info';
+              const logTitle = error.isQuotaExceeded
+                ? `Quota تمام شده برای کلید ${maskedKey} - صبر ${waitSeconds} ثانیه`
+                : `Rate limit برای کلید ${maskedKey} - صبر ${waitSeconds} ثانیه`;
+              
+              addLog(logType, logTitle, {
+                key: maskedKey,
+                waitSeconds,
+                ...contextFromMeta(meta)
+              });
+              continue;
+            }
+          }
+        }
+        
+        if (allKeysRateLimited(apiKeys) && attempt === 0) {
+          const waitMs = waitTimeForNextKey();
+          const waitSeconds = Math.ceil(waitMs / 1000);
+          if (waitMs > 0) {
+            addLog('info', `همه کلیدها rate limited هستند - انتظار ${waitSeconds} ثانیه`, {
+              totalKeys: apiKeys.length,
+              ...contextFromMeta(meta)
+            });
+            await delay(waitMs + 1000);
+            return performAttempt(payload, attempt + 1);
+          }
+        }
+        
+        if (lastError?.isQuotaExceeded) {
+          addLog('error', 'همه API Key‌ها quota تمام شده دارند. لطفاً صبر کنید یا quota خود را بررسی کنید.', {
+            model,
+            ...contextFromMeta(meta)
+          });
+        } else {
+          addLog('error', 'همه API Key‌ها خطا دادند', {
+            model,
+            ...contextFromMeta(meta)
+          });
+        }
+        
+        throw lastError || new Error("خطا در همه کلیدها");
+      }
+      
+      return {
+        request(model, prompt, meta = {}) {
+          return queue.add(() => performAttempt({ model, prompt, meta }));
+        }
+      };
+    }
     
     // DOM Elements
     const userIdea = document.getElementById("user-idea");
@@ -1195,219 +1492,11 @@
       });
     }
     
-    // API Call with Queue and Stats Tracking
-    async function callGemini(model, prompt) {
-      return requestQueue.add(async () => {
-        const fullPrompt = config.systemPrompt + "\n\n" + prompt;
-        const body = { contents: [{ role: "user", parts: [{ text: fullPrompt }] }] };
-        let lastError;
-
-        // If no API keys are configured, fail fast instead of entering a long wait loop.
-        if (!config.apiKeys || config.apiKeys.length === 0) {
-          const errMsg =
-            "هیچ کلید API تنظیم نشده است. لطفاً کلیدها را به عنوان متغیر محیطی مشخص کنید.";
-          addLog(
-            'error',
-            errMsg,
-            { model, prompt: prompt.substring(0, 200) }
-          );
-          throw new Error(errMsg);
-        }
-        
-        // Log request
-        addLog('request', `ارسال درخواست به ${model}`, {
-          model,
-          prompt: fullPrompt.substring(0, 500) + (fullPrompt.length > 500 ? '...' : ''),
-          timestamp: new Date().toISOString()
-        });
-        
-        for (let i = 0; i < config.apiKeys.length; i++) {
-          const keyIndex = (currentKeyIndex + i) % config.apiKeys.length;
-          const apiKey = config.apiKeys[keyIndex];
-          const maskedKey = apiKey.substring(0, 10) + '...' + apiKey.substring(apiKey.length - 5);
-          
-          // Skip rate-limited keys
-          if (rateLimitedKeys.has(apiKey)) {
-            const expiryTime = rateLimitedKeys.get(apiKey);
-            if (Date.now() < expiryTime) {
-              const remainingSeconds = Math.ceil((expiryTime - Date.now()) / 1000);
-              addLog('info', `کلید ${maskedKey} در حال rate limit است - ${remainingSeconds} ثانیه باقی مانده`, { key: maskedKey, remainingSeconds });
-              continue; // Skip this key and try next one
-            } else {
-              // Rate limit expired, remove from map
-              rateLimitedKeys.delete(apiKey);
-            }
-          }
-          
-          // Update stats
-          if (!keyStats[apiKey]) keyStats[apiKey] = { total: 0, success: 0, error: 0, lastUsed: null };
-          keyStats[apiKey].total++;
-          keyStats[apiKey].lastUsed = new Date().toISOString();
-          activeKeys.add(apiKey);
-          saveKeyStats(keyStats);
-          updateKeyStatsUI();
-          
-          addLog('info', `استفاده از API Key: ${maskedKey}`, { keyIndex, model });
-          
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-          try {
-            const startTime = Date.now();
-            const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-            const duration = Date.now() - startTime;
-            
-            if (!res.ok) {
-              const errorText = await res.text().catch(() => '');
-              let errorData;
-              try {
-                errorData = JSON.parse(errorText);
-              } catch {
-                errorData = { message: errorText || `HTTP ${res.status}` };
-              }
-              
-              addLog('error', `خطا در ${model} با کلید ${maskedKey}`, {
-                status: res.status,
-                statusText: res.statusText,
-                error: errorData,
-                duration: duration + 'ms'
-              }, new Error(`HTTP ${res.status}: ${errorData.message || res.statusText}`));
-              
-              if (res.status === 429) {
-                // Parse error message to check if it's quota exhaustion or rate limit
-                const errorMessage = errorData?.error?.message || errorData?.message || '';
-                const isQuotaExceeded = errorMessage.includes('quota') || errorMessage.includes('Quota exceeded');
-                
-                // Extract retry time from error message (e.g., "Please retry in 59.322608273s")
-                let waitSeconds = 60; // Default: wait 60 seconds
-                const retryMatch = errorMessage.match(/retry in ([\d.]+)s/i);
-                if (retryMatch) {
-                  waitSeconds = Math.ceil(parseFloat(retryMatch[1])) || 60;
-                } else {
-                  // Try Retry-After header if available
-                  const retryAfter = res.headers.get('Retry-After');
-                  if (retryAfter) {
-                    waitSeconds = parseInt(retryAfter, 10) || 60;
-                  }
-                }
-                
-                const expiryTime = Date.now() + (waitSeconds * 1000);
-                rateLimitedKeys.set(apiKey, expiryTime);
-                
-                if (isQuotaExceeded) {
-                  addLog('error', `Quota تمام شده برای کلید ${maskedKey} - صبر ${waitSeconds} ثانیه`, { 
-                    key: maskedKey, 
-                    waitSeconds,
-                    errorType: 'quota_exceeded',
-                    errorMessage: errorMessage.substring(0, 200)
-                  });
-                } else {
-                  addLog('info', `Rate limit برای کلید ${maskedKey} - صبر ${waitSeconds} ثانیه`, { 
-                    key: maskedKey, 
-                    waitSeconds,
-                    errorType: 'rate_limit'
-                  });
-                }
-                
-                // Continue to next key instead of retrying same key
-                keyStats[apiKey].error++;
-                activeKeys.delete(apiKey);
-                saveKeyStats(keyStats);
-                updateKeyStatsUI();
-                lastError = new Error(`HTTP 429: ${isQuotaExceeded ? 'Quota exceeded' : 'Rate limit exceeded'} for key ${maskedKey}`);
-                continue; // Try next key
-              }
-              throw new Error(`HTTP ${res.status}: ${errorData.message || res.statusText}`);
-            }
-            
-            const data = await res.json();
-            const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || "")?.join("") || "";
-            
-            // Log response
-            addLog('response', `پاسخ دریافت شد از ${model}`, {
-              model,
-              key: maskedKey,
-              duration: duration + 'ms',
-              responseLength: text.length,
-              response: text.substring(0, 1000) + (text.length > 1000 ? '...' : ''),
-              fullResponse: text
-            });
-            
-            // Success - clear rate limit if it was set
-            if (rateLimitedKeys.has(apiKey)) {
-              rateLimitedKeys.delete(apiKey);
-              addLog('info', `کلید ${maskedKey} از rate limit خارج شد`, { key: maskedKey });
-            }
-            
-            keyStats[apiKey].success++;
-            currentKeyIndex = (keyIndex + 1) % config.apiKeys.length;
-            activeKeys.delete(apiKey);
-            saveKeyStats(keyStats);
-            updateKeyStatsUI();
-            
-            return text;
-          } catch (e) {
-            keyStats[apiKey].error++;
-            activeKeys.delete(apiKey);
-            saveKeyStats(keyStats);
-            updateKeyStatsUI();
-            
-            addLog('error', `خطا در ${model}`, {
-              key: maskedKey,
-              error: e.message,
-              stack: e.stack
-            }, e);
-            
-            lastError = e;
-          }
-        }
-        
-        // Check if all keys are rate-limited or quota exhausted
-        const allKeysRateLimited = config.apiKeys.every(key => {
-          if (!rateLimitedKeys.has(key)) return false;
-          return Date.now() < rateLimitedKeys.get(key);
-        });
-        
-        if (allKeysRateLimited) {
-          // Find the earliest expiry time
-          let earliestExpiry = Infinity;
-          for (const [key, expiry] of rateLimitedKeys.entries()) {
-            if (expiry < earliestExpiry) {
-              earliestExpiry = expiry;
-            }
-          }
-          
-          const waitTime = Math.max(0, earliestExpiry - Date.now());
-          const waitSeconds = Math.ceil(waitTime / 1000);
-          
-          if (waitTime > 0) {
-            addLog('error', `همه کلیدها rate limited یا quota تمام شده هستند - انتظار ${waitSeconds} ثانیه`, { 
-              waitSeconds,
-              earliestExpiry: new Date(earliestExpiry).toISOString(),
-              totalKeys: config.apiKeys.length
-            });
-            await new Promise(r => setTimeout(r, waitTime + 1000)); // Add 1 second buffer
-            
-            // Retry once after waiting
-            return callGemini(model, prompt);
-          }
-        }
-        
-        // Check if the error is quota-related
-        const isQuotaError = lastError?.message?.includes('Quota exceeded') || 
-                            lastError?.message?.includes('quota');
-        
-        if (isQuotaError) {
-          addLog('error', 'همه API Key‌ها quota تمام شده دارند. لطفاً صبر کنید یا quota خود را بررسی کنید.', { 
-            model, 
-            prompt: prompt.substring(0, 200),
-            errorType: 'quota_exhausted',
-            helpUrl: 'https://ai.google.dev/gemini-api/docs/rate-limits'
-          });
-          throw new Error("همه کلیدها quota تمام شده دارند. لطفاً صبر کنید یا quota خود را بررسی کنید.");
-        }
-        
-        addLog('error', 'همه API Key‌ها خطا دادند', { model, prompt: prompt.substring(0, 200) });
-        throw lastError || new Error("خطا در همه کلیدها");
-      });
+    // API Call Wrapper
+    function callGemini(model, prompt, meta = {}) {
+      const fullPrompt = [config.systemPrompt?.trim(), prompt].filter(Boolean).join("\n\n");
+      const enrichedMeta = { ...meta, userPrompt: prompt };
+      return geminiClient.request(model, fullPrompt, enrichedMeta);
     }
     
     // Typewriter Effect
@@ -1628,7 +1717,11 @@
           details.classList.toggle("open");
           if (details.classList.contains("open") && details.textContent === "در حال دریافت جزئیات...") {
             try {
-              const detailText = await callGemini(config.modelThinking, `برای این تسک: "${task.label}" - یک راهنمای عملی و خلاقانه ۳-۵ جمله‌ای برای تحقق آن بنویس.`);
+              const detailText = await callGemini(
+                config.modelThinking,
+                `برای این تسک: "${task.label}" - یک راهنمای عملی و خلاقانه ۳-۵ جمله‌ای برای تحقق آن بنویس.`,
+                { phase: "task_detail", taskId: task.id || task.label }
+              );
               details.innerHTML = parseFormatting(detailText);
             } catch (e) {
               details.textContent = "خطا در دریافت جزئیات.";
@@ -1703,7 +1796,15 @@
               prompt: thinkingPrompt.substring(0, 300) + '...'
             });
             
-            const thinkingText = await callGemini(config.modelThinking, thinkingPrompt);
+            const thinkingText = await callGemini(
+              config.modelThinking,
+              thinkingPrompt,
+              {
+                stepId: step.id,
+                phase: "thinking",
+                ideaSnippet: idea.substring(0, 160)
+              }
+            );
             
             addLog('info', `تفکر دریافت شد برای ${step.title}`, { 
               stepId: step.id,
@@ -1735,7 +1836,15 @@
             promptType: step.id
           });
           
-          const outputText = await callGemini(config.modelOutput, outputPrompt);
+          const outputText = await callGemini(
+            config.modelOutput,
+            outputPrompt,
+            {
+              stepId: step.id,
+              phase: "output",
+              ideaSnippet: idea.substring(0, 160)
+            }
+          );
           summary[step.id] = { thinking: thinkingText, output: outputText };
           
           addLog('info', `خروجی دریافت شد برای ${step.title}`, { 
