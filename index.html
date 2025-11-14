@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>مربی تفکر تعاون آفرینی</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Vazirmatn", Arial, sans-serif;
+      background: #fafafa; color: #333; height: 100vh; overflow: hidden;
+    }
+    #app { display: flex; flex-direction: column; height: 100vh; max-width: 1400px; margin: 0 auto; padding: 16px; gap: 12px; }
+    
+    /* Header */
+    .header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; }
+    .header-title { font-size: 15px; font-weight: 600; }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
+    .btn-icon { width: 32px; height: 32px; border: 1px solid #ddd; background: #fff; border-radius: 6px; cursor: pointer; display: grid; place-items: center; font-size: 16px; }
+    .btn-icon:hover { background: #f5f5f5; }
+    
+    /* Input Section - Collapsed State */
+    .input-collapsed-bar { display: none; padding: 8px 12px; background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; font-size: 13px; color: #666; cursor: pointer; align-items: center; justify-content: space-between; }
+    .input-collapsed-bar:hover { background: #f9f9f9; }
+    .input-preview { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    body.input-hidden .input-collapsed-bar { display: flex; }
+    body.input-hidden .sidebar .panel:first-child { display: none; }
+    
+    /* Layout */
+    .layout { display: flex; gap: 12px; flex: 1; min-height: 0; }
+    .sidebar { width: 340px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
+    .panel { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px; }
+    .input-label { font-size: 12px; color: #666; margin-bottom: 8px; }
+    #user-idea { width: 100%; min-height: 100px; max-height: 180px; resize: vertical; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; outline: none; }
+    #user-idea:focus { border-color: #4a90e2; }
+    .input-actions { margin-top: 8px; display: flex; gap: 8px; justify-content: flex-end; }
+    .btn-primary { padding: 8px 14px; background: #4a90e2; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+    .btn-primary:hover { background: #357abd; }
+    .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+    
+    /* Steps */
+    .steps-title { font-size: 12px; color: #666; margin-bottom: 8px; }
+    .steps-list { list-style: none; display: flex; flex-direction: column; gap: 6px; max-height: calc(50vh - 100px); overflow: auto; }
+    .step-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 6px; font-size: 13px; }
+    .step-number { width: 22px; height: 22px; border-radius: 50%; background: #eee; display: grid; place-items: center; font-size: 11px; flex-shrink: 0; }
+    .step-dot { width: 8px; height: 8px; border-radius: 50%; background: #ddd; }
+    .step-item[data-status=running] .step-number { background: #4a90e2; color: #fff; }
+    .step-item[data-status=running] .step-dot { background: #4a90e2; animation: pulse 1.5s infinite; }
+    .step-item[data-status=running] .step-label::after {
+      content: "...";
+      display: inline-block;
+      width: 20px;
+      text-align: left;
+      margin-right: 4px;
+      animation: dots 1.4s steps(4, end) infinite;
+    }
+    .step-item[data-status=done] .step-number { background: #4caf50; color: #fff; }
+    .step-item[data-status=done] .step-dot { background: #4caf50; }
+    
+    /* Content */
+    .content { flex: 1; background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px; overflow: auto; min-height: 0; }
+    .placeholder { color: #999; font-size: 13px; text-align: center; padding: 40px 20px; }
+    
+    /* Operation Cards */
+    .op-card { border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px; margin-bottom: 12px; background: #fafafa; }
+    .op-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .op-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+    .op-num { width: 20px; height: 20px; border-radius: 50%; background: #e5e5e5; display: grid; place-items: center; font-size: 11px; }
+    .op-status { font-size: 12px; color: #666; }
+    .op-body { display: flex; flex-direction: column; gap: 10px; }
+    
+    /* Thinking */
+    .thinking { background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 6px; padding: 10px; }
+    .thinking-label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #666; margin-bottom: 6px; }
+    .dots {
+      display: inline-block;
+      width: 20px;
+      text-align: left;
+    }
+    .dots::after {
+      content: "...";
+      animation: dots 1.4s steps(4, end) infinite;
+    }
+    @keyframes dots {
+      0% { content: "."; }
+      25% { content: ".."; }
+      50% { content: "..."; }
+      75%, 100% { content: "..."; }
+    }
+    .arrow { width: 20px; height: 20px; border: 1px solid #ddd; background: #fff; color: #555; display: grid; place-items: center; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    .arrow:hover { background: #f3f3f3; }
+    .thinking.collapsed .thinking-text { display: none; }
+    .thinking-text { font-family: ui-monospace, Menlo, Monaco, monospace; font-size: 11px; white-space: pre-wrap; line-height: 1.6; color: #666; }
+    
+    /* Result */
+    .result-label { font-size: 12px; color: #666; margin-bottom: 6px; font-weight: 600; }
+    .result-content { font-size: 14px; line-height: 1.7; }
+    .result-content strong, .result-content b { font-weight: 600; }
+    .result-content em, .result-content i { font-style: italic; }
+    
+    /* Error & Retry */
+    .error { color: #b00020; background: #fdecee; border: 1px solid #f6c2c8; border-radius: 6px; padding: 10px; font-size: 12px; }
+    .retry-btn { margin-top: 8px; padding: 6px 12px; background: #4a90e2; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .retry-btn:hover { background: #357abd; }
+    
+    /* Value Chain Diagram */
+    .chain-diagram { display: flex; align-items: center; gap: 12px; margin-top: 12px; overflow-x: auto; padding: 20px 10px; }
+    .chain-node { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 120px; }
+    .chain-circle { width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #4a90e2, #357abd); color: #fff; display: grid; place-items: center; font-weight: 600; cursor: pointer; transition: transform 0.2s; box-shadow: 0 2px 8px rgba(74,144,226,0.3); }
+    .chain-circle:hover { transform: scale(1.1); }
+    .chain-label { font-size: 11px; color: #666; text-align: center; max-width: 120px; }
+    .chain-connector { width: 40px; height: 2px; background: #ddd; margin-bottom: 30px; }
+    .chain-bubble { position: absolute; top: 60px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 12px; min-width: 200px; max-width: 280px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; font-size: 12px; line-height: 1.6; display: none; }
+    .chain-bubble.active { display: block; }
+    .chain-bubble::before { content: ''; position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 12px; height: 12px; background: #fff; border: 1px solid #ddd; border-bottom: none; border-right: none; transform: translateX(-50%) rotate(45deg); }
+    
+    /* Canvas */
+    .canvas { list-style: none; margin-top: 8px; }
+    .canvas li { padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+    .canvas li:last-child { border-bottom: 0; }
+    .canvas .key { color: #4a90e2; font-weight: 600; }
+    
+    /* Infographic */
+    .infographic { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 12px; }
+    .ig-card { border: 1px solid #cfe4ff; background: #f3f8ff; border-radius: 6px; padding: 12px; }
+    .ig-title { font-weight: 600; margin-bottom: 4px; }
+    .ig-cap { font-size: 12px; color: #666; margin-bottom: 8px; }
+    
+    /* Checklist Cards */
+    .checklist { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+    .task-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; }
+    .task-card:hover { border-color: #4a90e2; box-shadow: 0 2px 8px rgba(74,144,226,0.15); }
+    .task-header { display: flex; align-items: center; gap: 10px; }
+    .task-checkbox { width: 18px; height: 18px; cursor: pointer; }
+    .task-title { flex: 1; font-size: 14px; font-weight: 500; }
+    .task-title.completed { text-decoration: line-through; color: #999; }
+    .task-meta { font-size: 11px; color: #999; margin-left: 10px; }
+    .task-actions { display: flex; gap: 6px; }
+    .task-btn { padding: 4px 10px; border: 1px solid #ddd; background: #fff; border-radius: 6px; font-size: 11px; cursor: pointer; }
+    .task-btn:hover { background: #f5f5f5; }
+    .task-details { margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0f0f0; font-size: 13px; line-height: 1.6; color: #666; display: none; }
+    .task-details.open { display: block; }
+    
+    /* Settings Modal */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-overlay.active { display: flex; }
+    .modal { background: #fff; border-radius: 12px; max-width: 800px; width: 90%; max-height: 85vh; overflow: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+    .modal-header { padding: 16px 20px; border-bottom: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: center; }
+    .modal-title { font-size: 16px; font-weight: 600; }
+    .modal-close { width: 28px; height: 28px; border: none; background: #f5f5f5; border-radius: 6px; cursor: pointer; font-size: 18px; }
+    .modal-close:hover { background: #e5e5e5; }
+    .modal-body { padding: 20px; }
+    .setting-group { margin-bottom: 24px; }
+    .setting-label { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #333; }
+    .setting-desc { font-size: 12px; color: #666; margin-bottom: 8px; }
+    select, input[type=text] { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+    textarea.setting-textarea { width: 100%; min-height: 80px; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; font-family: monospace; }
+    .btn-save { padding: 8px 16px; background: #4a90e2; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .btn-save:hover { background: #357abd; }
+    
+    /* API Keys Management */
+    .api-keys-section { margin-top: 24px; }
+    .api-key-card { background: #f9f9f9; border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .api-key-info { flex: 1; }
+    .api-key-value { font-family: monospace; font-size: 11px; color: #666; margin-bottom: 6px; word-break: break-all; }
+    .api-key-stats { display: flex; gap: 16px; font-size: 11px; }
+    .stat-item { display: flex; flex-direction: column; gap: 2px; }
+    .stat-label { color: #999; }
+    .stat-value { font-weight: 600; }
+    .stat-value.success { color: #4caf50; }
+    .stat-value.error { color: #f44336; }
+    .stat-value.active { color: #4a90e2; animation: pulse 1.5s infinite; }
+    .api-key-actions { display: flex; gap: 6px; }
+    .btn-small { padding: 4px 10px; border: 1px solid #ddd; background: #fff; border-radius: 6px; cursor: pointer; font-size: 11px; }
+    .btn-small:hover { background: #f5f5f5; }
+    .btn-small.danger { border-color: #f44336; color: #f44336; }
+    .btn-small.danger:hover { background: #ffebee; }
+    .btn-add-key { width: 100%; padding: 10px; border: 2px dashed #ddd; background: #fff; border-radius: 8px; cursor: pointer; font-size: 13px; color: #666; margin-top: 10px; }
+    .btn-add-key:hover { border-color: #4a90e2; color: #4a90e2; }
+    .add-key-input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; font-family: monospace; margin-top: 8px; }
+    
+    /* Steps Cards Management */
+    .steps-cards-container { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+    .step-card { background: #fff; border: 2px solid #e5e5e5; border-radius: 10px; padding: 16px; position: relative; transition: all 0.2s; }
+    .step-card:hover { border-color: #4a90e2; box-shadow: 0 2px 8px rgba(74, 144, 226, 0.1); }
+    .step-card.editing { border-color: #4a90e2; box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1); }
+    .step-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .step-card-number { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #4a90e2, #357abd); color: #fff; display: grid; place-items: center; font-size: 14px; font-weight: 600; flex-shrink: 0; }
+    .step-card-title { flex: 1; font-size: 15px; font-weight: 600; color: #333; }
+    .step-card-actions { display: flex; gap: 6px; }
+    .btn-card-action { width: 32px; height: 32px; border: 1px solid #ddd; background: #fff; border-radius: 6px; cursor: pointer; display: grid; place-items: center; font-size: 14px; transition: all 0.2s; }
+    .btn-card-action:hover { background: #f5f5f5; border-color: #4a90e2; color: #4a90e2; }
+    .btn-card-action.danger:hover { border-color: #f44336; color: #f44336; background: #ffebee; }
+    .step-card-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .step-card-field { display: flex; flex-direction: column; gap: 6px; }
+    .step-card-field.full-width { grid-column: 1 / -1; }
+    .step-card-field-label { font-size: 11px; color: #666; font-weight: 500; }
+    .step-card-field-input { padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; outline: none; transition: border-color 0.2s; }
+    .step-card-field-input:focus { border-color: #4a90e2; }
+    .step-card-field-input[readonly] { background: #f9f9f9; color: #999; cursor: not-allowed; }
+    .step-card-view { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .step-card-view-item { display: flex; flex-direction: column; gap: 4px; }
+    .step-card-view-label { font-size: 11px; color: #999; }
+    .step-card-view-value { font-size: 13px; color: #333; }
+    .btn-add-step { width: 100%; padding: 12px; border: 2px dashed #4a90e2; background: #f0f7ff; border-radius: 10px; cursor: pointer; font-size: 14px; color: #4a90e2; font-weight: 500; margin-top: 8px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn-add-step:hover { background: #e0efff; border-color: #357abd; }
+    .step-card-drag-handle { cursor: move; color: #999; }
+    .step-card-drag-handle:hover { color: #4a90e2; }
+    .btn-card-action:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-card-action:disabled:hover { background: #fff; border-color: #ddd; color: inherit; }
+    @media (max-width: 768px) {
+      .step-card-fields, .step-card-view { grid-template-columns: 1fr; }
+      .step-card-header { flex-wrap: wrap; }
+      .step-card-actions { width: 100%; justify-content: flex-end; margin-top: 8px; }
+    }
+    
+    /* Tabs */
+    .tabs { display: flex; gap: 8px; border-bottom: 2px solid #e5e5e5; margin-bottom: 20px; }
+    .tab { padding: 10px 16px; background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-size: 13px; color: #666; transition: all 0.2s; margin-bottom: -2px; }
+    .tab:hover { color: #333; }
+    .tab.active { color: #4a90e2; border-bottom-color: #4a90e2; font-weight: 600; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    
+    /* Logs */
+    .logs-container { max-height: 500px; overflow-y: auto; border: 1px solid #e5e5e5; border-radius: 8px; background: #fafafa; }
+    .log-entry { border-bottom: 1px solid #e5e5e5; }
+    .log-entry:last-child { border-bottom: none; }
+    .log-header { padding: 10px 12px; background: #fff; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s; }
+    .log-header:hover { background: #f5f5f5; }
+    .log-header-left { display: flex; align-items: center; gap: 10px; flex: 1; }
+    .log-time { font-size: 11px; color: #999; font-family: monospace; }
+    .log-type { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+    .log-type.request { background: #e3f2fd; color: #1976d2; }
+    .log-type.response { background: #e8f5e9; color: #388e3c; }
+    .log-type.error { background: #ffebee; color: #d32f2f; }
+    .log-type.info { background: #fff3e0; color: #f57c00; }
+    .log-title { font-size: 12px; color: #333; flex: 1; }
+    .log-toggle { font-size: 12px; color: #999; }
+    .log-body { padding: 12px; background: #fff; display: none; font-family: monospace; font-size: 11px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; border-top: 1px solid #f0f0f0; }
+    .log-body.open { display: block; }
+    .log-body pre { margin: 0; }
+    .log-actions { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #e5e5e5; background: #fff; }
+    .btn-clear-logs { padding: 6px 12px; background: #f44336; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .btn-clear-logs:hover { background: #d32f2f; }
+    .btn-export-logs { padding: 6px 12px; background: #4a90e2; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .btn-export-logs:hover { background: #357abd; }
+    
+    /* Animations */
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+    @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    
+    /* Mobile */
+    @media(max-width: 900px){ 
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; }
+      .steps-list { flex-direction: row; overflow-x: auto; max-height: none; }
+      .step-item { flex-shrink: 0; min-width: 120px; }
+      .chain-diagram { justify-content: flex-start; }
+    }
+
+    /* Mobile-only elements */
+    .mobile-only { display: none; }
+    @media(max-width: 900px) {
+      /* Elements marked mobile-only only appear on small viewports */
+      .mobile-only { display: inline-flex; }
+    }
+
+    /* Retry icon after error */
+    .retry-icon {
+      background: none;
+      border: none;
+      color: #4a90e2;
+      cursor: pointer;
+      font-size: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 4px;
+    }
+    .retry-icon:hover {
+      color: #357abd;
+    }
+
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <div class="header-title">مربی تفکر تعاون آفرینی</div>
+      <div class="header-actions">
+        <!-- تنظیمات -->
+        <button id="settings-btn" class="btn-icon" title="تنظیمات">⚙️</button>
+        <!-- دکمه جمع/باز کردن ورودی (فقط برای موبایل) -->
+        <button id="toggle-input-btn" class="btn-icon mobile-only" title="جمع/باز کردن ورودی">⌨️</button>
+      </div>
+    </header>
+    
+    <div id="input-collapsed-bar" class="input-collapsed-bar">
+      <span class="input-preview" id="input-preview">دغدغه خود را بنویسید...</span>
+      <span>✏️</span>
+    </div>
+    
+    <main class="layout">
+      <aside class="sidebar">
+        <section class="panel">
+          <div class="input-label">دغدغه یا ایده خود را بنویسید:</div>
+          <textarea id="user-idea" placeholder="مثال: هماهنگی نیروهای مسجد برای کارهای جهادی محله..."></textarea>
+          <div class="input-actions">
+            <button id="run-btn" class="btn-primary">شروع تحلیل</button>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="steps-title">مراحل عملیات</div>
+          <ul id="steps-list" class="steps-list"></ul>
+        </section>
+      </aside>
+      <section class="content">
+        <div id="placeholder" class="placeholder">دغدغه خود را بنویسید و «شروع تحلیل» را بزنید.</div>
+        <div id="ops"></div>
+      </section>
+    </main>
+  </div>
+  
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">تنظیمات</div>
+        <button id="modal-close" class="modal-close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="tabs">
+          <button class="tab active" data-tab="prompts">پرامپت‌ها</button>
+          <!-- حذف زبانهٔ مدیریت کلیدها، کلیدها از محیط اجرا خوانده می‌شوند -->
+          <button class="tab" data-tab="logs">لاگ‌ها</button>
+        </div>
+        
+        <!-- Prompts Tab -->
+        <div id="tab-prompts" class="tab-content active">
+          <div class="setting-group">
+            <div class="setting-label">مدل تفکر (Thinking)</div>
+            <div class="setting-desc">مدل برای مرحله تفکر و پردازش</div>
+            <select id="model-thinking">
+              <option value="gemini-2.0-flash-thinking-exp-01-21">Gemini 2.0 Flash Thinking</option>
+              <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            </select>
+          </div>
+          <div class="setting-group">
+            <div class="setting-label">مدل خروجی (Output)</div>
+            <div class="setting-desc">مدل برای تولید خروجی نهایی</div>
+            <select id="model-output">
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+              <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash</option>
+            </select>
+          </div>
+          <div class="setting-group">
+            <div class="setting-label">مراحل عملیات</div>
+            <div class="setting-desc">مدیریت و ویرایش مراحل عملیات</div>
+            <div id="steps-cards-container" class="steps-cards-container"></div>
+            <button id="add-step-btn" class="btn-add-step">
+              <span>+</span>
+              <span>افزودن مرحله جدید</span>
+            </button>
+          </div>
+          <div class="setting-group">
+            <div class="setting-label">پرامپت سیستم</div>
+            <textarea id="system-prompt" class="setting-textarea"></textarea>
+          </div>
+          <button id="save-settings" class="btn-save">ذخیره تنظیمات</button>
+        </div>
+        
+        <!-- API Keys Tab حذف شد -->
+        
+        <!-- Logs Tab -->
+        <div id="tab-logs" class="tab-content">
+          <div class="setting-group">
+            <div class="setting-label">لاگ‌های سیستم</div>
+            <div class="setting-desc">تمام درخواست‌ها، پاسخ‌ها و خطاها</div>
+            <div class="logs-container" id="logs-container"></div>
+            <div class="log-actions">
+              <button id="clear-logs-btn" class="btn-clear-logs">پاک کردن لاگ‌ها</button>
+              <button id="export-logs-btn" class="btn-export-logs">دانلود لاگ‌ها</button>
+      </div>
+    </div>
+    </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Default Configuration
+    // کلیدهای API به عنوان متغیر محیطی از window.TAAVON_API_KEYS خوانده می‌شوند.
+    const DEFAULT_CONFIG = {
+      // API keys are injected via a Cloudflare environment variable.  This value can be
+      // either an array or a comma‑separated string.  Parse into an array of non‑empty strings.
+      apiKeys:
+        Array.isArray(window.TAAVON_API_KEYS)
+          ? window.TAAVON_API_KEYS
+          : typeof window.TAAVON_API_KEYS === "string"
+          ? window.TAAVON_API_KEYS.split(",").map(k => k.trim()).filter(Boolean)
+          : [],
+      modelThinking: "gemini-2.0-flash-thinking-exp-01-21",
+      modelOutput: "gemini-2.5-pro",
+      systemPrompt: "تو یک «مربی تفکر تعاون آفرینی» هستی. خروجی را به فارسی بده.",
+      steps: [
+        { id: "analysis", title: "تحلیل دغدغه و بازتعریف به بستر تعاون", resultLabel: "بازتعریف دغدغه", thinkingLabel: "در حال تفکر برای بازتعریف مسئله" },
+        { id: "value_chain", title: "استخراج زنجیره ارزش", resultLabel: "نمودار زنجیره ارزش", thinkingLabel: "در حال تفکر برای طراحی زنجیره ارزش" },
+        { id: "canvas", title: "پر کردن بوم تعاون آفرینی", resultLabel: "بوم تعاون آفرینی", thinkingLabel: "در حال تفکر برای پر کردن بوم" },
+        { id: "infographic", title: "طراحی اینفوگرافیک", resultLabel: "اینفوگرافیک بستر تعاون", thinkingLabel: "در حال تفکر برای طراحی اینفوگرافیک" },
+        { id: "checklist", title: "فرمان عملیات", resultLabel: "چک‌لیست عملیات", thinkingLabel: "در حال تفکر برای تدوین فرمان عملیات" }
+      ]
+    };
+
+    // Load/Save Config
+    function loadConfig() {
+      const saved = localStorage.getItem('taavon_config');
+      // Always prioritise DEFAULT_CONFIG.apiKeys (from environment) over any saved keys.
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...DEFAULT_CONFIG, ...parsed, apiKeys: DEFAULT_CONFIG.apiKeys };
+      }
+      return DEFAULT_CONFIG;
+    }
+    function saveConfig(config) {
+      localStorage.setItem('taavon_config', JSON.stringify(config));
+    }
+    
+    // Load/Save API Key Stats
+    function loadKeyStats() {
+      const saved = localStorage.getItem('taavon_key_stats');
+      return saved ? JSON.parse(saved) : {};
+    }
+    function saveKeyStats(stats) {
+      localStorage.setItem('taavon_key_stats', JSON.stringify(stats));
+    }
+    
+    // Logging System
+    const MAX_LOGS = 500; // Keep last 500 logs
+    function loadLogs() {
+      const saved = localStorage.getItem('taavon_logs');
+      return saved ? JSON.parse(saved) : [];
+    }
+    function saveLogs(logs) {
+      // Keep only last MAX_LOGS
+      const trimmed = logs.slice(-MAX_LOGS);
+      localStorage.setItem('taavon_logs', JSON.stringify(trimmed));
+    }
+    
+    function addLog(type, title, data = null, error = null) {
+      const log = {
+        id: Date.now() + Math.random(),
+        timestamp: new Date().toISOString(),
+        type, // 'request', 'response', 'error', 'info'
+        title,
+        data: data ? (typeof data === 'string' ? data : JSON.stringify(data, null, 2)) : null,
+        error: error ? (error.message || String(error)) : null
+      };
+      
+      const logs = loadLogs();
+      logs.push(log);
+      saveLogs(logs);
+      
+      // Update UI if logs tab is active
+      if (document.getElementById('tab-logs')?.classList.contains('active')) {
+        renderLogs();
+      }
+    }
+    
+    function renderLogs() {
+      const container = document.getElementById('logs-container');
+      if (!container) return;
+      
+      const logs = loadLogs();
+      container.innerHTML = '';
+      
+      if (logs.length === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: #999;">لاگی وجود ندارد</div>';
+        return;
+      }
+      
+      // Show newest first
+      logs.slice().reverse().forEach(log => {
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        
+        const header = document.createElement('div');
+        header.className = 'log-header';
+        
+        const left = document.createElement('div');
+        left.className = 'log-header-left';
+        
+        const time = document.createElement('span');
+        time.className = 'log-time';
+        const date = new Date(log.timestamp);
+        time.textContent = date.toLocaleTimeString('fa-IR') + ' ' + date.toLocaleDateString('fa-IR');
+        
+        const typeBadge = document.createElement('span');
+        typeBadge.className = 'log-type ' + log.type;
+        const typeLabels = {
+          request: 'درخواست',
+          response: 'پاسخ',
+          error: 'خطا',
+          info: 'اطلاعات'
+        };
+        typeBadge.textContent = typeLabels[log.type] || log.type;
+        
+        const title = document.createElement('span');
+        title.className = 'log-title';
+        title.textContent = log.title;
+        
+        const toggle = document.createElement('span');
+        toggle.className = 'log-toggle';
+        toggle.textContent = '▾';
+        
+        left.append(time, typeBadge, title);
+        header.append(left, toggle);
+        
+        const body = document.createElement('div');
+        body.className = 'log-body';
+        
+        if (log.error) {
+          const errorDiv = document.createElement('div');
+          errorDiv.style.color = '#d32f2f';
+          errorDiv.style.marginBottom = '8px';
+          errorDiv.textContent = 'خطا: ' + log.error;
+          body.appendChild(errorDiv);
+        }
+        
+        if (log.data) {
+          const pre = document.createElement('pre');
+          pre.textContent = log.data;
+          body.appendChild(pre);
+        }
+        
+        entry.append(header, body);
+        
+        header.addEventListener('click', () => {
+          body.classList.toggle('open');
+          toggle.textContent = body.classList.contains('open') ? '▴' : '▾';
+        });
+        
+        container.appendChild(entry);
+      });
+    }
+    
+    let config = loadConfig();
+    let keyStats = loadKeyStats();
+    let currentKeyIndex = 0;
+    let activeKeys = new Set(); // Track currently active keys
+    
+    // Initialize stats for new keys
+    config.apiKeys.forEach(key => {
+      if (!keyStats[key]) {
+        keyStats[key] = { total: 0, success: 0, error: 0, lastUsed: null };
+      }
+    });
+    saveKeyStats(keyStats);
+    
+    // Request Queue Manager with exponential backoff
+    class RequestQueue {
+      constructor(delayMs = 2000) {
+        this.queue = [];
+        this.processing = false;
+        this.delay = delayMs;
+        this.lastRequestTime = 0;
+      }
+      
+      async add(requestFn) {
+        return new Promise((resolve, reject) => {
+          this.queue.push({ requestFn, resolve, reject });
+          this.process();
+        });
+      }
+      
+      async process() {
+        if (this.processing || this.queue.length === 0) return;
+        this.processing = true;
+        
+        while (this.queue.length > 0) {
+          const { requestFn, resolve, reject } = this.queue.shift();
+          
+          // Ensure minimum delay since last request
+          const timeSinceLastRequest = Date.now() - this.lastRequestTime;
+          if (timeSinceLastRequest < this.delay) {
+            await new Promise(r => setTimeout(r, this.delay - timeSinceLastRequest));
+          }
+          
+          try {
+            this.lastRequestTime = Date.now();
+            const result = await requestFn();
+            resolve(result);
+          } catch (error) {
+            reject(error);
+          }
+          
+          // Delay between requests to avoid rate limiting
+          if (this.queue.length > 0) {
+            await new Promise(r => setTimeout(r, this.delay));
+          }
+        }
+        
+        this.processing = false;
+      }
+    }
+    
+    const requestQueue = new RequestQueue(2000); // 2 second delay between requests to avoid rate limiting
+    
+    // Rate limit tracking for API keys
+    const rateLimitedKeys = new Map(); // key -> timestamp when rate limit expires
+    
+    // DOM Elements
+    const userIdea = document.getElementById("user-idea");
+    const runBtn = document.getElementById("run-btn");
+    const stepsList = document.getElementById("steps-list");
+    const ops = document.getElementById("ops");
+    const placeholder = document.getElementById("placeholder");
+    const inputCollapsedBar = document.getElementById("input-collapsed-bar");
+    const inputPreview = document.getElementById("input-preview");
+    const toggleInputBtn = document.getElementById("toggle-input-btn");
+    const settingsBtn = document.getElementById("settings-btn");
+    const settingsModal = document.getElementById("settings-modal");
+    const modalClose = document.getElementById("modal-close");
+    
+    // Tab Switching (پرامپت و لاگ‌ها)
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const tabName = tab.dataset.tab;
+        // Update tabs
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        // Update content
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+        // Load content if needed
+        if (tabName === 'logs') {
+          renderLogs();
+        }
+      });
+    });
+    
+    // Steps Cards Management
+    function renderStepsCards() {
+      const container = document.getElementById("steps-cards-container");
+      container.innerHTML = "";
+      
+      config.steps.forEach((step, index) => {
+        const card = createStepCard(step, index);
+        container.appendChild(card);
+      });
+    }
+    
+    function createStepCard(step, index) {
+      const card = document.createElement("div");
+      card.className = "step-card";
+      card.dataset.index = index;
+      
+      const isEditing = card.dataset.editing === "true";
+      
+      // Header
+      const header = document.createElement("div");
+      header.className = "step-card-header";
+      
+      const number = document.createElement("div");
+      number.className = "step-card-number";
+      number.textContent = index + 1;
+      
+      const title = document.createElement("div");
+      title.className = "step-card-title";
+      title.textContent = step.title || "مرحله بدون عنوان";
+      
+      const actions = document.createElement("div");
+      actions.className = "step-card-actions";
+      
+      // Drag handle
+      const dragHandle = document.createElement("button");
+      dragHandle.className = "btn-card-action step-card-drag-handle";
+      dragHandle.title = "تغییر ترتیب";
+      dragHandle.innerHTML = "⋮⋮";
+      dragHandle.onclick = (e) => {
+        e.stopPropagation();
+        // Simple move up/down for now
+      };
+      
+      // Move up button
+      const moveUpBtn = document.createElement("button");
+      moveUpBtn.className = "btn-card-action";
+      moveUpBtn.title = "جابجایی به بالا";
+      moveUpBtn.innerHTML = "↑";
+      moveUpBtn.disabled = index === 0;
+      moveUpBtn.onclick = (e) => {
+        e.stopPropagation();
+        moveStep(index, index - 1);
+      };
+      
+      // Move down button
+      const moveDownBtn = document.createElement("button");
+      moveDownBtn.className = "btn-card-action";
+      moveDownBtn.title = "جابجایی به پایین";
+      moveDownBtn.innerHTML = "↓";
+      moveDownBtn.disabled = index === config.steps.length - 1;
+      moveDownBtn.onclick = (e) => {
+        e.stopPropagation();
+        moveStep(index, index + 1);
+      };
+      
+      // Edit button
+      const editBtn = document.createElement("button");
+      editBtn.className = "btn-card-action";
+      editBtn.title = "ویرایش";
+      editBtn.innerHTML = "✏️";
+      editBtn.onclick = (e) => {
+        e.stopPropagation();
+        toggleEditStep(card, step, index);
+      };
+      
+      // Delete button
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "btn-card-action danger";
+      deleteBtn.title = "حذف";
+      deleteBtn.innerHTML = "🗑️";
+      deleteBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (confirm(`آیا مطمئن هستید که می‌خواهید مرحله "${step.title}" را حذف کنید؟`)) {
+          deleteStep(index);
+        }
+      };
+      
+      actions.append(moveUpBtn, moveDownBtn, editBtn, deleteBtn);
+      header.append(number, title, actions);
+      
+      // Content (view mode)
+      const viewContent = document.createElement("div");
+      viewContent.className = "step-card-view";
+      
+      const viewItems = [
+        { label: "شناسه", value: step.id },
+        { label: "عنوان", value: step.title },
+        { label: "برچسب نتیجه", value: step.resultLabel },
+        { label: "برچسب تفکر", value: step.thinkingLabel }
+      ];
+      
+      viewItems.forEach(item => {
+        const viewItem = document.createElement("div");
+        viewItem.className = "step-card-view-item";
+        const label = document.createElement("div");
+        label.className = "step-card-view-label";
+        label.textContent = item.label;
+        const value = document.createElement("div");
+        value.className = "step-card-view-value";
+        value.textContent = item.value || "-";
+        viewItem.append(label, value);
+        viewContent.appendChild(viewItem);
+      });
+      
+      // Content (edit mode)
+      const editContent = document.createElement("div");
+      editContent.className = "step-card-fields";
+      editContent.style.display = "none";
+      
+      const idField = createField("شناسه (ID)", "id", step.id, true);
+      const titleField = createField("عنوان", "title", step.title);
+      const resultLabelField = createField("برچسب نتیجه", "resultLabel", step.resultLabel);
+      const thinkingLabelField = createField("برچسب تفکر", "thinkingLabel", step.thinkingLabel);
+      
+      editContent.append(idField, titleField, resultLabelField, thinkingLabelField);
+      
+      // Save/Cancel buttons
+      const editActions = document.createElement("div");
+      editActions.className = "step-card-actions";
+      editActions.style.marginTop = "12px";
+      editActions.style.display = "none";
+      
+      const saveBtn = document.createElement("button");
+      saveBtn.className = "btn-save";
+      saveBtn.textContent = "ذخیره";
+      saveBtn.onclick = (e) => {
+        e.stopPropagation();
+        saveStepEdit(card, index);
+      };
+      
+      const cancelBtn = document.createElement("button");
+      cancelBtn.className = "btn-card-action";
+      cancelBtn.textContent = "لغو";
+      cancelBtn.onclick = (e) => {
+        e.stopPropagation();
+        toggleEditStep(card, step, index);
+      };
+      
+      editActions.append(saveBtn, cancelBtn);
+      
+      card.append(header, viewContent, editContent, editActions);
+      
+      return card;
+    }
+    
+    function createField(label, name, value, readonly = false) {
+      const field = document.createElement("div");
+      field.className = `step-card-field ${name === 'id' ? '' : ''}`;
+      
+      const labelEl = document.createElement("div");
+      labelEl.className = "step-card-field-label";
+      labelEl.textContent = label;
+      
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "step-card-field-input";
+      input.name = name;
+      input.value = value || "";
+      if (readonly) {
+        input.readOnly = true;
+      }
+      
+      field.append(labelEl, input);
+      return field;
+    }
+    
+    function toggleEditStep(card, step, index) {
+      const isEditing = card.dataset.editing === "true";
+      const viewContent = card.querySelector(".step-card-view");
+      const editContent = card.querySelector(".step-card-fields");
+      const editActions = card.querySelector(".step-card-actions:last-of-type");
+      const title = card.querySelector(".step-card-title");
+      
+      // Get current step from config (might have been updated)
+      const currentStep = config.steps[index];
+      
+      if (isEditing) {
+        // Switch to view mode - cancel changes
+        card.dataset.editing = "false";
+        card.classList.remove("editing");
+        viewContent.style.display = "grid";
+        editContent.style.display = "none";
+        editActions.style.display = "none";
+        title.textContent = currentStep.title || "مرحله بدون عنوان";
+        
+        // Update view content with current values
+        const viewItems = viewContent.querySelectorAll(".step-card-view-item");
+        if (viewItems.length >= 4) {
+          viewItems[0].querySelector(".step-card-view-value").textContent = currentStep.id || "-";
+          viewItems[1].querySelector(".step-card-view-value").textContent = currentStep.title || "-";
+          viewItems[2].querySelector(".step-card-view-value").textContent = currentStep.resultLabel || "-";
+          viewItems[3].querySelector(".step-card-view-value").textContent = currentStep.thinkingLabel || "-";
+        }
+      } else {
+        // Switch to edit mode
+        card.dataset.editing = "true";
+        card.classList.add("editing");
+        viewContent.style.display = "none";
+        editContent.style.display = "grid";
+        editActions.style.display = "flex";
+        
+        // Populate fields with current values
+        editContent.querySelector(`input[name="id"]`).value = currentStep.id || "";
+        editContent.querySelector(`input[name="title"]`).value = currentStep.title || "";
+        editContent.querySelector(`input[name="resultLabel"]`).value = currentStep.resultLabel || "";
+        editContent.querySelector(`input[name="thinkingLabel"]`).value = currentStep.thinkingLabel || "";
+      }
+    }
+    
+    function saveStepEdit(card, index) {
+      const fields = card.querySelectorAll(".step-card-field-input");
+      const step = {
+        id: fields[0].value.trim() || `step_${Date.now()}`,
+        title: fields[1].value.trim() || "مرحله بدون عنوان",
+        resultLabel: fields[2].value.trim() || "",
+        thinkingLabel: fields[3].value.trim() || ""
+      };
+      
+      config.steps[index] = step;
+      renderStepsCards();
+      
+      // Scroll to the updated card
+      setTimeout(() => {
+        const cards = document.querySelectorAll(".step-card");
+        if (cards[index]) {
+          cards[index].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 50);
+    }
+    
+    function deleteStep(index) {
+      config.steps.splice(index, 1);
+      renderStepsCards();
+    }
+    
+    function moveStep(fromIndex, toIndex) {
+      if (toIndex < 0 || toIndex >= config.steps.length) return;
+      
+      const step = config.steps.splice(fromIndex, 1)[0];
+      config.steps.splice(toIndex, 0, step);
+      renderStepsCards();
+    }
+    
+    function addNewStep() {
+      const newStep = {
+        id: `step_${Date.now()}`,
+        title: "مرحله جدید",
+        resultLabel: "نتیجه",
+        thinkingLabel: "در حال تفکر..."
+      };
+      
+      config.steps.push(newStep);
+      renderStepsCards();
+      
+      // Auto-edit the new step
+      setTimeout(() => {
+        const cards = document.querySelectorAll(".step-card");
+        const lastCard = cards[cards.length - 1];
+        if (lastCard) {
+          const lastIndex = config.steps.length - 1;
+          toggleEditStep(lastCard, config.steps[lastIndex], lastIndex);
+        }
+      }, 100);
+    }
+    
+    // Settings UI
+    settingsBtn.addEventListener("click", () => {
+      document.getElementById("model-thinking").value = config.modelThinking;
+      document.getElementById("model-output").value = config.modelOutput;
+      renderStepsCards();
+      document.getElementById("system-prompt").value = config.systemPrompt;
+      // در این نسخه رابط مدیریت کلیدها حذف شده است، بنابراین نیازی به به‌روزرسانی آمار کلیدها نیست
+      renderLogs();
+      settingsModal.classList.add("active");
+    });
+    
+    // Add step button
+    document.getElementById("add-step-btn").addEventListener("click", addNewStep);
+    
+    // Clear Logs
+    document.getElementById("clear-logs-btn").addEventListener("click", () => {
+      if (confirm("آیا مطمئن هستید که می‌خواهید همه لاگ‌ها را پاک کنید؟")) {
+        localStorage.removeItem('taavon_logs');
+        renderLogs();
+      }
+    });
+    
+    // Export Logs
+    document.getElementById("export-logs-btn").addEventListener("click", () => {
+      const logs = loadLogs();
+      const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `taavon-logs-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+    
+    // Add API Key functionality حذف شده است. دکمه مربوطه در رابط وجود ندارد.
+    
+    modalClose.addEventListener("click", () => settingsModal.classList.remove("active"));
+    settingsModal.addEventListener("click", (e) => {
+      if (e.target === settingsModal) settingsModal.classList.remove("active");
+    });
+    
+    document.getElementById("save-settings").addEventListener("click", () => {
+      try {
+        config.modelThinking = document.getElementById("model-thinking").value;
+        config.modelOutput = document.getElementById("model-output").value;
+        // Steps are already updated in config.steps through the card interface
+        config.systemPrompt = document.getElementById("system-prompt").value;
+        saveConfig(config);
+        alert("تنظیمات ذخیره شد!");
+        settingsModal.classList.remove("active");
+      } catch (e) {
+        alert("خطا در ذخیره: " + e.message);
+      }
+    });
+    
+    // Auto-update logs every 2 seconds when the modal is open
+    setInterval(() => {
+      if (settingsModal.classList.contains("active")) {
+        const activeTab = document.querySelector('.tab.active')?.dataset.tab;
+        if (activeTab === 'logs') {
+          renderLogs();
+        }
+      }
+    }, 2000);
+    
+    // Initial log
+    addLog('info', 'سیستم راه‌اندازی شد', { timestamp: new Date().toISOString() });
+    
+    // Input Collapse (Mobile)
+    function isMobile() { return window.innerWidth <= 900; }
+    inputCollapsedBar.addEventListener("click", () => {
+      document.body.classList.remove("input-hidden");
+      userIdea.focus();
+    });
+    
+    function collapseInput() {
+      if (isMobile() && userIdea.value.trim()) {
+        document.body.classList.add("input-hidden");
+        const preview = userIdea.value.trim().substring(0, 40);
+        inputPreview.textContent = preview + (userIdea.value.length > 40 ? "..." : "");
+      }
+    }
+
+    // Toggle input visibility on mobile by tapping keyboard icon
+    if (toggleInputBtn) {
+      toggleInputBtn.addEventListener("click", () => {
+        if (!isMobile()) return;
+        if (document.body.classList.contains("input-hidden")) {
+          // Expand the input panel
+          document.body.classList.remove("input-hidden");
+          userIdea.focus();
+        } else {
+          // Collapse if there is content
+          collapseInput();
+        }
+      });
+    }
+    
+    // Update API Keys Stats UI
+    function updateKeyStatsUI() {
+      const list = document.getElementById("api-keys-list");
+      if (!list) return;
+      
+      list.innerHTML = "";
+      
+      config.apiKeys.forEach((key, index) => {
+        const stats = keyStats[key] || { total: 0, success: 0, error: 0, lastUsed: null };
+        const successRate = stats.total > 0 ? ((stats.success / stats.total) * 100).toFixed(1) : 0;
+        const isActive = activeKeys.has(key);
+        
+        const card = document.createElement("div");
+        card.className = "api-key-card";
+        
+        const info = document.createElement("div");
+        info.className = "api-key-info";
+        
+        const keyValue = document.createElement("div");
+        keyValue.className = "api-key-value";
+        keyValue.textContent = key.substring(0, 20) + "..." + key.substring(key.length - 10);
+        
+        const statsDiv = document.createElement("div");
+        statsDiv.className = "api-key-stats";
+        
+        const totalStat = document.createElement("div");
+        totalStat.className = "stat-item";
+        totalStat.innerHTML = `<span class="stat-label">استفاده</span><span class="stat-value">${stats.total}</span>`;
+        
+        const successStat = document.createElement("div");
+        successStat.className = "stat-item";
+        successStat.innerHTML = `<span class="stat-label">موفق</span><span class="stat-value success">${stats.success}</span>`;
+        
+        const errorStat = document.createElement("div");
+        errorStat.className = "stat-item";
+        errorStat.innerHTML = `<span class="stat-label">خطا</span><span class="stat-value error">${stats.error}</span>`;
+        
+        const rateStat = document.createElement("div");
+        rateStat.className = "stat-item";
+        rateStat.innerHTML = `<span class="stat-label">نرخ موفقیت</span><span class="stat-value ${successRate >= 80 ? 'success' : successRate >= 50 ? '' : 'error'}">${successRate}%</span>`;
+        
+        const activeStat = document.createElement("div");
+        activeStat.className = "stat-item";
+        activeStat.innerHTML = `<span class="stat-label">وضعیت</span><span class="stat-value ${isActive ? 'active' : ''}">${isActive ? '● فعال' : '○ غیرفعال'}</span>`;
+        
+        statsDiv.append(totalStat, successStat, errorStat, rateStat, activeStat);
+        info.append(keyValue, statsDiv);
+        
+        const actions = document.createElement("div");
+        actions.className = "api-key-actions";
+        
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "btn-small danger";
+        deleteBtn.textContent = "حذف";
+        deleteBtn.onclick = () => {
+          if (confirm("آیا مطمئن هستید؟")) {
+            config.apiKeys.splice(index, 1);
+            delete keyStats[key];
+            saveConfig(config);
+            saveKeyStats(keyStats);
+            updateKeyStatsUI();
+          }
+        };
+        
+        actions.appendChild(deleteBtn);
+        card.append(info, actions);
+        list.appendChild(card);
+      });
+    }
+    
+    // API Call with Queue and Stats Tracking
+    async function callGemini(model, prompt) {
+      return requestQueue.add(async () => {
+        const fullPrompt = config.systemPrompt + "\n\n" + prompt;
+        const body = { contents: [{ role: "user", parts: [{ text: fullPrompt }] }] };
+        let lastError;
+
+        // If no API keys are configured, fail fast instead of entering a long wait loop.
+        if (!config.apiKeys || config.apiKeys.length === 0) {
+          const errMsg =
+            "هیچ کلید API تنظیم نشده است. لطفاً کلیدها را به عنوان متغیر محیطی مشخص کنید.";
+          addLog(
+            'error',
+            errMsg,
+            { model, prompt: prompt.substring(0, 200) }
+          );
+          throw new Error(errMsg);
+        }
+        
+        // Log request
+        addLog('request', `ارسال درخواست به ${model}`, {
+          model,
+          prompt: fullPrompt.substring(0, 500) + (fullPrompt.length > 500 ? '...' : ''),
+          timestamp: new Date().toISOString()
+        });
+        
+        for (let i = 0; i < config.apiKeys.length; i++) {
+          const keyIndex = (currentKeyIndex + i) % config.apiKeys.length;
+          const apiKey = config.apiKeys[keyIndex];
+          const maskedKey = apiKey.substring(0, 10) + '...' + apiKey.substring(apiKey.length - 5);
+          
+          // Skip rate-limited keys
+          if (rateLimitedKeys.has(apiKey)) {
+            const expiryTime = rateLimitedKeys.get(apiKey);
+            if (Date.now() < expiryTime) {
+              const remainingSeconds = Math.ceil((expiryTime - Date.now()) / 1000);
+              addLog('info', `کلید ${maskedKey} در حال rate limit است - ${remainingSeconds} ثانیه باقی مانده`, { key: maskedKey, remainingSeconds });
+              continue; // Skip this key and try next one
+            } else {
+              // Rate limit expired, remove from map
+              rateLimitedKeys.delete(apiKey);
+            }
+          }
+          
+          // Update stats
+          if (!keyStats[apiKey]) keyStats[apiKey] = { total: 0, success: 0, error: 0, lastUsed: null };
+          keyStats[apiKey].total++;
+          keyStats[apiKey].lastUsed = new Date().toISOString();
+          activeKeys.add(apiKey);
+          saveKeyStats(keyStats);
+          updateKeyStatsUI();
+          
+          addLog('info', `استفاده از API Key: ${maskedKey}`, { keyIndex, model });
+          
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+          try {
+            const startTime = Date.now();
+            const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+            const duration = Date.now() - startTime;
+            
+            if (!res.ok) {
+              const errorText = await res.text().catch(() => '');
+              let errorData;
+              try {
+                errorData = JSON.parse(errorText);
+              } catch {
+                errorData = { message: errorText || `HTTP ${res.status}` };
+              }
+              
+              addLog('error', `خطا در ${model} با کلید ${maskedKey}`, {
+                status: res.status,
+                statusText: res.statusText,
+                error: errorData,
+                duration: duration + 'ms'
+              }, new Error(`HTTP ${res.status}: ${errorData.message || res.statusText}`));
+              
+              if (res.status === 429) {
+                // Parse error message to check if it's quota exhaustion or rate limit
+                const errorMessage = errorData?.error?.message || errorData?.message || '';
+                const isQuotaExceeded = errorMessage.includes('quota') || errorMessage.includes('Quota exceeded');
+                
+                // Extract retry time from error message (e.g., "Please retry in 59.322608273s")
+                let waitSeconds = 60; // Default: wait 60 seconds
+                const retryMatch = errorMessage.match(/retry in ([\d.]+)s/i);
+                if (retryMatch) {
+                  waitSeconds = Math.ceil(parseFloat(retryMatch[1])) || 60;
+                } else {
+                  // Try Retry-After header if available
+                  const retryAfter = res.headers.get('Retry-After');
+                  if (retryAfter) {
+                    waitSeconds = parseInt(retryAfter, 10) || 60;
+                  }
+                }
+                
+                const expiryTime = Date.now() + (waitSeconds * 1000);
+                rateLimitedKeys.set(apiKey, expiryTime);
+                
+                if (isQuotaExceeded) {
+                  addLog('error', `Quota تمام شده برای کلید ${maskedKey} - صبر ${waitSeconds} ثانیه`, { 
+                    key: maskedKey, 
+                    waitSeconds,
+                    errorType: 'quota_exceeded',
+                    errorMessage: errorMessage.substring(0, 200)
+                  });
+                } else {
+                  addLog('info', `Rate limit برای کلید ${maskedKey} - صبر ${waitSeconds} ثانیه`, { 
+                    key: maskedKey, 
+                    waitSeconds,
+                    errorType: 'rate_limit'
+                  });
+                }
+                
+                // Continue to next key instead of retrying same key
+                keyStats[apiKey].error++;
+                activeKeys.delete(apiKey);
+                saveKeyStats(keyStats);
+                updateKeyStatsUI();
+                lastError = new Error(`HTTP 429: ${isQuotaExceeded ? 'Quota exceeded' : 'Rate limit exceeded'} for key ${maskedKey}`);
+                continue; // Try next key
+              }
+              throw new Error(`HTTP ${res.status}: ${errorData.message || res.statusText}`);
+            }
+            
+            const data = await res.json();
+            const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || "")?.join("") || "";
+            
+            // Log response
+            addLog('response', `پاسخ دریافت شد از ${model}`, {
+              model,
+              key: maskedKey,
+              duration: duration + 'ms',
+              responseLength: text.length,
+              response: text.substring(0, 1000) + (text.length > 1000 ? '...' : ''),
+              fullResponse: text
+            });
+            
+            // Success - clear rate limit if it was set
+            if (rateLimitedKeys.has(apiKey)) {
+              rateLimitedKeys.delete(apiKey);
+              addLog('info', `کلید ${maskedKey} از rate limit خارج شد`, { key: maskedKey });
+            }
+            
+            keyStats[apiKey].success++;
+            currentKeyIndex = (keyIndex + 1) % config.apiKeys.length;
+            activeKeys.delete(apiKey);
+            saveKeyStats(keyStats);
+            updateKeyStatsUI();
+            
+            return text;
+          } catch (e) {
+            keyStats[apiKey].error++;
+            activeKeys.delete(apiKey);
+            saveKeyStats(keyStats);
+            updateKeyStatsUI();
+            
+            addLog('error', `خطا در ${model}`, {
+              key: maskedKey,
+              error: e.message,
+              stack: e.stack
+            }, e);
+            
+            lastError = e;
+          }
+        }
+        
+        // Check if all keys are rate-limited or quota exhausted
+        const allKeysRateLimited = config.apiKeys.every(key => {
+          if (!rateLimitedKeys.has(key)) return false;
+          return Date.now() < rateLimitedKeys.get(key);
+        });
+        
+        if (allKeysRateLimited) {
+          // Find the earliest expiry time
+          let earliestExpiry = Infinity;
+          for (const [key, expiry] of rateLimitedKeys.entries()) {
+            if (expiry < earliestExpiry) {
+              earliestExpiry = expiry;
+            }
+          }
+          
+          const waitTime = Math.max(0, earliestExpiry - Date.now());
+          const waitSeconds = Math.ceil(waitTime / 1000);
+          
+          if (waitTime > 0) {
+            addLog('error', `همه کلیدها rate limited یا quota تمام شده هستند - انتظار ${waitSeconds} ثانیه`, { 
+              waitSeconds,
+              earliestExpiry: new Date(earliestExpiry).toISOString(),
+              totalKeys: config.apiKeys.length
+            });
+            await new Promise(r => setTimeout(r, waitTime + 1000)); // Add 1 second buffer
+            
+            // Retry once after waiting
+            return callGemini(model, prompt);
+          }
+        }
+        
+        // Check if the error is quota-related
+        const isQuotaError = lastError?.message?.includes('Quota exceeded') || 
+                            lastError?.message?.includes('quota');
+        
+        if (isQuotaError) {
+          addLog('error', 'همه API Key‌ها quota تمام شده دارند. لطفاً صبر کنید یا quota خود را بررسی کنید.', { 
+            model, 
+            prompt: prompt.substring(0, 200),
+            errorType: 'quota_exhausted',
+            helpUrl: 'https://ai.google.dev/gemini-api/docs/rate-limits'
+          });
+          throw new Error("همه کلیدها quota تمام شده دارند. لطفاً صبر کنید یا quota خود را بررسی کنید.");
+        }
+        
+        addLog('error', 'همه API Key‌ها خطا دادند', { model, prompt: prompt.substring(0, 200) });
+        throw lastError || new Error("خطا در همه کلیدها");
+      });
+    }
+    
+    // Typewriter Effect
+    async function typeWriter(el, text, speed = 20) {
+      el.textContent = "";
+      for (let i = 0; i < text.length; i++) {
+        el.textContent += text[i];
+        await new Promise(r => setTimeout(r, text[i] === " " ? speed/2 : speed));
+      }
+    }
+    
+    // Parse basic Markdown-like formatting (bold and italic).
+    // Bold: **text**, italic/emphasis: *text* or __text__
+    function parseFormatting(text) {
+      /**
+       * Very small Markdown-like parser to support bold, italic and links.
+       * It handles the following patterns:
+       *  - Bold: **text** or __text__
+       *  - Italic: *text* or _text_
+       *  - Bold+italic: ***text*** or ___text___
+       *  - Links: [title](url)
+       *  - Inline code: `code`
+       */
+      if (!text) return "";
+      let result = text;
+      // Escape HTML special characters to prevent injection
+      result = result
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      // Bold + italic (triple asterisks)
+      result = result.replace(/\*\*\*([^\*]+)\*\*\*/g, '<strong><em>$1</em></strong>');
+      result = result.replace(/___([^_]+)___/g, '<strong><em>$1</em></strong>');
+      // Bold (double asterisks or underscores)
+      result = result.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
+      result = result.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+      // Italic (single asterisk or underscore)
+      result = result.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
+      result = result.replace(/_([^_]+)_/g, '<em>$1</em>');
+      // Links [text](url)
+      result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(match, title, url) {
+        // Ensure url is safe (no javascript: etc.)
+        const trimmed = url.trim();
+        if (/^javascript:/i.test(trimmed)) {
+          return title; // Strip dangerous links
+        }
+        return `<a href="${trimmed}" target="_blank" rel="noopener noreferrer">${title}</a>`;
+      });
+      // Inline code `code`
+      result = result.replace(/`([^`]+)`/g, '<code>$1</code>');
+      return result;
+    }
+    
+    // Create Step Item
+    function createStepItem(index, title, status = "pending") {
+      const li = document.createElement("li");
+      li.className = "step-item";
+      li.dataset.index = index;
+      li.dataset.status = status;
+      const n = document.createElement("div"); n.className = "step-number"; n.textContent = index + 1;
+      const label = document.createElement("div"); 
+      label.className = "step-label";
+      label.style.flex = "1"; 
+      label.textContent = title;
+      const dot = document.createElement("div"); dot.className = "step-dot";
+      li.append(n, label, dot);
+      return li;
+    }
+    
+    // Create Operation Card
+    function createOpCard(step, index) {
+      const card = document.createElement("div"); card.className = "op-card";
+      const head = document.createElement("div"); head.className = "op-head";
+      const title = document.createElement("div"); title.className = "op-title";
+      const num = document.createElement("div"); num.className = "op-num"; num.textContent = index + 1;
+      const name = document.createElement("span"); name.textContent = step.title;
+      title.append(num, name);
+      const status = document.createElement("div"); status.className = "op-status"; status.textContent = "در حال اجرا...";
+      head.append(title, status);
+      
+      const body = document.createElement("div"); body.className = "op-body";
+      const thinking = document.createElement("div"); thinking.className = "thinking";
+      const thLabel = document.createElement("div"); thLabel.className = "thinking-label";
+      const arrow = document.createElement("button"); arrow.type = "button"; arrow.className = "arrow"; arrow.textContent = "▾";
+      const thTitle = document.createElement("span");
+      thLabel.append(arrow, thTitle);
+      const thText = document.createElement("div"); thText.className = "thinking-text";
+      thinking.append(thLabel, thText);
+      
+      const resultLabel = document.createElement("div"); resultLabel.className = "result-label";
+      // Use the provided resultLabel if available; otherwise fall back to the step title
+      const labelText = step.resultLabel || step.title;
+      resultLabel.innerHTML = `<strong>${labelText}</strong>`;
+      const result = document.createElement("div"); result.className = "result-content";
+      
+      body.append(thinking, resultLabel, result);
+      card.append(head, body);
+      
+      arrow.addEventListener("click", () => {
+        thinking.classList.toggle("collapsed");
+        arrow.textContent = thinking.classList.contains("collapsed") ? "▸" : "▾";
+      });
+      
+      return { card, statusEl: status, thinkingTitleEl: thTitle, thinkingTextEl: thText, resultEl: result };
+    }
+    
+    // Render Value Chain Diagram
+    function renderValueChain(container, data) {
+      const diagram = document.createElement("div");
+      diagram.className = "chain-diagram";
+      
+      (data.steps || []).forEach((step, i) => {
+        const node = document.createElement("div");
+        node.className = "chain-node";
+        
+        const circle = document.createElement("div");
+        circle.className = "chain-circle";
+        circle.textContent = i + 1;
+        
+        const label = document.createElement("div");
+        label.className = "chain-label";
+        label.textContent = step.provider + " → " + step.receiver;
+        
+        const bubble = document.createElement("div");
+        bubble.className = "chain-bubble";
+        bubble.innerHTML = `<strong>${step.step || "گام " + (i + 1)}</strong><br><br>${parseFormatting(step.description || "")}`;
+        
+        circle.addEventListener("click", (e) => {
+          e.stopPropagation();
+          document.querySelectorAll(".chain-bubble").forEach(b => b.classList.remove("active"));
+          bubble.classList.add("active");
+        });
+        
+        node.append(circle, label, bubble);
+        diagram.appendChild(node);
+        
+        if (i < (data.steps || []).length - 1) {
+          const connector = document.createElement("div");
+          connector.className = "chain-connector";
+          diagram.appendChild(connector);
+        }
+      });
+      
+      document.addEventListener("click", () => {
+        document.querySelectorAll(".chain-bubble").forEach(b => b.classList.remove("active"));
+      });
+      
+      container.appendChild(diagram);
+    }
+    
+    // Parse JSON
+    function parseJSON(text) {
+      const a = text.indexOf("{"), b = text.lastIndexOf("}");
+      if (a === -1 || b === -1) return null;
+      try { return JSON.parse(text.slice(a, b + 1)); } catch { return null; }
+    }
+    
+    // Render Canvas
+    function renderCanvas(container, text) {
+      const ul = document.createElement("ul"); ul.className = "canvas";
+      text.split("\n").filter(l => l.trim().startsWith("-")).forEach(line => {
+        const t = line.replace(/^-/, "").trim();
+        const [k, ...r] = t.split(":");
+        if (k && r.length) {
+          const li = document.createElement("li");
+          li.innerHTML = `<span class="key">${k.trim()}:</span> ${parseFormatting(r.join(":").trim())}`;
+          ul.appendChild(li);
+        }
+      });
+      container.appendChild(ul);
+    }
+    
+    // Render Infographic
+    function renderInfographic(container, data) {
+      const grid = document.createElement("div"); grid.className = "infographic";
+      (data.sections || []).forEach(s => {
+        const card = document.createElement("div"); card.className = "ig-card";
+        const t = document.createElement("div"); t.className = "ig-title"; t.textContent = s.title || "";
+        const cap = document.createElement("div"); cap.className = "ig-cap"; cap.textContent = s.caption || "";
+        const ul = document.createElement("ul");
+        (s.bullets || []).forEach(b => { const li = document.createElement("li"); li.innerHTML = parseFormatting(b); ul.appendChild(li); });
+        card.append(t, cap, ul); grid.appendChild(card);
+      });
+      container.appendChild(grid);
+    }
+    
+    // Render Checklist
+    function renderChecklist(container, data) {
+      const list = document.createElement("div"); list.className = "checklist";
+      (data.tasks || []).forEach(task => {
+        const card = document.createElement("div"); card.className = "task-card";
+        const header = document.createElement("div"); header.className = "task-header";
+        
+        const cb = document.createElement("input"); cb.type = "checkbox"; cb.className = "task-checkbox"; cb.checked = !!task.done;
+        const title = document.createElement("div"); title.className = "task-title" + (task.done ? " completed" : "");
+        title.innerHTML = parseFormatting(task.label || "");
+        
+        const meta = document.createElement("span"); meta.className = "task-meta";
+        meta.textContent = [task.category, task.suggestedDay ? `روز ${task.suggestedDay}` : ""].filter(Boolean).join(" • ");
+        
+        const actions = document.createElement("div"); actions.className = "task-actions";
+        const detailBtn = document.createElement("button"); detailBtn.className = "task-btn"; detailBtn.textContent = "جزئیات";
+        const chatBtn = document.createElement("button"); chatBtn.className = "task-btn"; chatBtn.textContent = "💬 چت";
+        actions.append(detailBtn, chatBtn);
+        
+        header.append(cb, title, meta, actions);
+        
+        const details = document.createElement("div"); details.className = "task-details";
+        details.textContent = "در حال دریافت جزئیات...";
+        
+        cb.addEventListener("change", () => {
+          task.done = cb.checked;
+          title.classList.toggle("completed", task.done);
+        });
+        
+        detailBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          details.classList.toggle("open");
+          if (details.classList.contains("open") && details.textContent === "در حال دریافت جزئیات...") {
+            try {
+              const detailText = await callGemini(config.modelThinking, `برای این تسک: "${task.label}" - یک راهنمای عملی و خلاقانه ۳-۵ جمله‌ای برای تحقق آن بنویس.`);
+              details.innerHTML = parseFormatting(detailText);
+            } catch (e) {
+              details.textContent = "خطا در دریافت جزئیات.";
+            }
+          }
+        });
+        
+        chatBtn.addEventListener("click", () => {
+          alert(`چت برای تسک: ${task.label}\n(قابلیت چت در نسخه بعدی اضافه می‌شود)`);
+        });
+        
+        card.append(header, details);
+        list.appendChild(card);
+      });
+      container.appendChild(list);
+    }
+    
+    // Main Pipeline
+    async function runPipeline() {
+      const idea = userIdea.value.trim();
+      if (!idea) return;
+      
+      addLog('info', 'شروع Pipeline', { idea: idea.substring(0, 100) + (idea.length > 100 ? '...' : '') });
+      
+      runBtn.disabled = true;
+      ops.innerHTML = "";
+      if (placeholder.parentNode) placeholder.remove();
+      stepsList.innerHTML = "";
+      collapseInput();
+      
+      const loadingLi = createStepItem(-1, "در حال طراحی عملیات...", "running");
+      loadingLi.querySelector(".step-number").textContent = "…";
+      stepsList.appendChild(loadingLi);
+      
+      await new Promise(r => setTimeout(r, 400));
+      stepsList.innerHTML = "";
+      
+      let summary = {};
+      
+      for (let i = 0; i < config.steps.length; i++) {
+        const step = config.steps[i];
+        
+        addLog('info', `شروع مرحله ${i + 1}: ${step.title}`, { stepId: step.id, stepIndex: i });
+        
+        // Add step to list
+        const stepLi = createStepItem(i, step.title, "running");
+        stepsList.appendChild(stepLi);
+        
+        // Scroll to active step (mobile)
+        if (isMobile()) {
+          stepLi.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+        }
+        
+        // Create card
+        const ui = createOpCard(step, i);
+        ops.appendChild(ui.card);
+        ui.card.scrollIntoView({ behavior: "smooth" });
+        
+        // Thinking phase
+        ui.thinkingTitleEl.textContent = "";
+        await typeWriter(ui.thinkingTitleEl, step.thinkingLabel, 15);
+        const dots = document.createElement("span"); 
+        dots.className = "dots";
+        ui.thinkingTitleEl.appendChild(dots);
+          
+          try {
+            // Step 1: Get thinking
+            const thinkingPrompt = `دغدغه: ${idea}\nمرحله: ${step.title}\nبه این فکر کن و یک تحلیل بنویس.`;
+            addLog('info', `ارسال درخواست تفکر برای مرحله ${step.title}`, { 
+              stepId: step.id, 
+              model: config.modelThinking,
+              prompt: thinkingPrompt.substring(0, 300) + '...'
+            });
+            
+            const thinkingText = await callGemini(config.modelThinking, thinkingPrompt);
+            
+            addLog('info', `تفکر دریافت شد برای ${step.title}`, { 
+              stepId: step.id,
+              thinkingLength: thinkingText.length,
+              thinking: thinkingText.substring(0, 500) + (thinkingText.length > 500 ? '...' : '')
+            });
+            
+            await typeWriter(ui.thinkingTextEl, thinkingText, 10);
+            // Remove the dots animation element
+            dots.remove();
+          
+          // Step 2: Get output based on thinking
+          let outputPrompt = "";
+          if (step.id === "value_chain") {
+            outputPrompt = `بر اساس تفکر زیر، زنجیره ارزش را به فرمت JSON خروجی بده:\n${thinkingText}\n\nفرمت:\n{"steps": [{"step": "گام ۱", "provider": "ارائه‌کننده", "receiver": "دریافت‌کننده", "description": "توضیح"}]}`;
+          } else if (step.id === "checklist") {
+            outputPrompt = `بر اساس تفکر زیر، چک‌لیست ۱۰ موردی JSON بده:\n${thinkingText}\n\nفرمت:\n{"tasks": [{"id": 1, "label": "...", "category": "آماده‌سازی", "suggestedDay": 1, "done": false}]}`;
+          } else if (step.id === "infographic") {
+            outputPrompt = `بر اساس تفکر زیر، اینفوگرافیک JSON بده:\n${thinkingText}\n\nفرمت:\n{"sections": [{"title": "...", "caption": "...", "bullets": ["..."]}]}`;
+          } else if (step.id === "canvas") {
+            outputPrompt = `بر اساس تفکر زیر، بوم تعاون آفرینی را به صورت لیست بولت بنویس:\n${thinkingText}\n\nفرمت:\n- مسئله: ...\n- ارزش پیشنهادی: ...`;
+          } else {
+            outputPrompt = `بر اساس تفکر زیر، خروجی را بنویس:\n${thinkingText}`;
+          }
+          
+          addLog('info', `درخواست خروجی برای ${step.title}`, { 
+            stepId: step.id,
+            model: config.modelOutput,
+            promptType: step.id
+          });
+          
+          const outputText = await callGemini(config.modelOutput, outputPrompt);
+          summary[step.id] = { thinking: thinkingText, output: outputText };
+          
+          addLog('info', `خروجی دریافت شد برای ${step.title}`, { 
+            stepId: step.id,
+            outputLength: outputText.length,
+            output: outputText.substring(0, 500) + (outputText.length > 500 ? '...' : '')
+          });
+          
+          // Render output
+          if (step.id === "value_chain") {
+            const json = parseJSON(outputText);
+            if (json) {
+              renderValueChain(ui.resultEl, json);
+              addLog('info', `نمودار زنجیره ارزش رندر شد`, { stepId: step.id, stepsCount: json.steps?.length || 0 });
+            } else {
+              ui.resultEl.innerHTML = parseFormatting(outputText);
+            }
+          } else if (step.id === "checklist") {
+            const json = parseJSON(outputText);
+            if (json) {
+              renderChecklist(ui.resultEl, json);
+              addLog('info', `چک‌لیست رندر شد`, { stepId: step.id, tasksCount: json.tasks?.length || 0 });
+            } else {
+              ui.resultEl.innerHTML = parseFormatting(outputText);
+            }
+          } else if (step.id === "infographic") {
+            const json = parseJSON(outputText);
+            if (json) {
+              renderInfographic(ui.resultEl, json);
+              addLog('info', `اینفوگرافیک رندر شد`, { stepId: step.id, sectionsCount: json.sections?.length || 0 });
+            } else {
+              ui.resultEl.innerHTML = parseFormatting(outputText);
+            }
+          } else if (step.id === "canvas") {
+            renderCanvas(ui.resultEl, outputText);
+            addLog('info', `بوم تعاون آفرینی رندر شد`, { stepId: step.id });
+          } else {
+            ui.resultEl.innerHTML = parseFormatting(outputText);
+          }
+          
+          ui.statusEl.textContent = "انجام شد";
+          stepLi.dataset.status = "done";
+          
+          addLog('info', `مرحله ${step.title} با موفقیت انجام شد`, { stepId: step.id, stepIndex: i });
+        } catch (e) {
+          ui.statusEl.textContent = "خطا";
+          stepLi.dataset.status = "error";
+          
+          addLog('error', `خطا در مرحله ${step.title}`, { 
+            stepId: step.id,
+            stepIndex: i,
+            error: e.message,
+            stack: e.stack
+          }, e);
+          
+          const err = document.createElement("div");
+          err.className = "error";
+          err.textContent = `خطا: ${e.message}`;
+          // Retry button: restart the pipeline from the beginning so the user can try again
+          const retry = document.createElement("button");
+          retry.className = "retry-btn";
+          retry.textContent = "↻ سعی مجدد";
+          retry.onclick = () => {
+            runBtn.disabled = false;
+            // Clear existing UI elements and start over
+            ops.innerHTML = "";
+            stepsList.innerHTML = "";
+            // Run the pipeline again with the current idea
+            runPipeline();
+          };
+          err.appendChild(retry);
+          ui.resultEl.appendChild(err);
+          break;
+        }
+      }
+      
+      addLog('info', 'Pipeline به پایان رسید', { 
+        completedSteps: Object.keys(summary).length,
+        totalSteps: config.steps.length
+      });
+      
+      runBtn.disabled = false;
+    }
+    
+    runBtn.addEventListener("click", runPipeline);
+    userIdea.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); runPipeline(); }
+    });
+  </script>
+</body>
+</html>
